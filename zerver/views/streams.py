@@ -93,7 +93,8 @@ def list_to_streams(streams_raw, user_profile, autocreate=False, invite_only=Fal
         # creating a new stream, and both people eagerly do it.)
         created_streams, dup_streams = create_streams_if_needed(realm=user_profile.realm,
                                                                 stream_names=missing_stream_names,
-                                                                invite_only=invite_only)
+                                                                invite_only=invite_only,
+                                                                stream_description="")
         existing_streams += dup_streams
 
     return existing_streams, created_streams
@@ -312,8 +313,11 @@ def add_subscriptions_backend(request, user_profile,
                               authorization_errors_fatal = REQ(validator=check_bool, default=True)):
     # type: (HttpRequest, UserProfile, Iterable[Mapping[str, text_type]], bool, bool, Optional[List[text_type]], bool) -> HttpResponse
     stream_names = []
+    name_to_description = {}
     for stream_dict in streams_raw:
         stream_name = stream_dict["name"].strip()
+        stream_description = stream_dict.get("description", "").strip()
+        name_to_description[stream_name] = stream_description
         if len(stream_name) > Stream.MAX_NAME_LENGTH:
             return json_error(_("Stream name (%s) too long.") % (stream_name,))
         if not valid_stream_name(stream_name):
@@ -336,6 +340,9 @@ def add_subscriptions_backend(request, user_profile,
         subscribers = set(principal_to_user_profile(user_profile, principal) for principal in principals)
     else:
         subscribers = set([user_profile])
+
+    for stream in streams:
+        do_change_stream_description(user_profile.realm, stream.name, name_to_description[stream.name])
 
     (subscribed, already_subscribed) = bulk_add_subscriptions(streams, subscribers)
 
